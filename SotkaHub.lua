@@ -1,177 +1,197 @@
--- SotkaHub - purple/black UI prototype for your own Roblox Studio project.
--- Place as a LocalScript in StarterPlayer > StarterPlayerScripts.
--- This is a UI demo only. It does NOT bypass bans, anti-cheat, or grant game permissions.
+-- SotkaHub - safe Roblox Studio prototype
+-- Put this LocalScript in StarterPlayer > StarterPlayerScripts in YOUR OWN Roblox experience.
+-- This is a UI/demo for your own game, not an executor/third-party game exploit.
+-- For DOORS-style highlighting, tag your own objects with CollectionService tags: "Door" and "Item".
 
 local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local guiParent = player:WaitForChild("PlayerGui")
+local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
-local PURPLE = Color3.fromRGB(145, 60, 255)
-local DARK = Color3.fromRGB(12, 9, 20)
-local PANEL = Color3.fromRGB(25, 19, 38)
-local TEXT = Color3.fromRGB(245, 239, 255)
-local MUTED = Color3.fromRGB(174, 157, 198)
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local PURPLE = Color3.fromRGB(153, 55, 255)
+local DARK = {bg=Color3.fromRGB(14, 10, 23), panel=Color3.fromRGB(24, 17, 38), card=Color3.fromRGB(32, 22, 49), text=Color3.fromRGB(248, 242, 255), sub=Color3.fromRGB(190, 169, 220), line=Color3.fromRGB(120, 45, 220)}
+local LIGHT = {bg=Color3.fromRGB(245, 239, 255), panel=Color3.fromRGB(255, 252, 255), card=Color3.fromRGB(235, 222, 255), text=Color3.fromRGB(54, 25, 91), sub=Color3.fromRGB(105, 72, 145), line=Color3.fromRGB(155, 91, 255)}
+local palette = DARK
+local currentGame = "Choose a game"
+local highlightsEnabled = {Door=false, Item=false}
+local highlights = {}
+local selectedDevice = "ðŸ’»"
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "SotkaHub"
+gui.Name = "SotkaHubPrototype"
 gui.ResetOnSpawn = false
-gui.Parent = guiParent
+gui.IgnoreGuiInset = true
+gui.Parent = playerGui
 
-local root = Instance.new("Frame")
-root.Name = "Window"
-root.Size = UDim2.fromOffset(390, 440)
-root.Position = UDim2.new(0.5, -195, 0.5, -220)
-root.BackgroundColor3 = DARK
-root.BorderSizePixel = 0
-root.Active = true
-root.Draggable = true
-root.Parent = gui
-Instance.new("UICorner", root).CornerRadius = UDim.new(0, 14)
-local stroke = Instance.new("UIStroke", root)
-stroke.Color = PURPLE
-stroke.Thickness = 2
+local function make(className, props, parent)
+    local obj = Instance.new(className)
+    for k,v in pairs(props or {}) do obj[k] = v end
+    obj.Parent = parent
+    return obj
+end
 
-local header = Instance.new("TextLabel")
-header.Size = UDim2.new(1, -80, 0, 48)
-header.Position = UDim2.fromOffset(16, 4)
-header.BackgroundTransparency = 1
-header.Text = "♛  SotkaHub"
-header.TextColor3 = Color3.fromRGB(218, 178, 255)
-header.Font = Enum.Font.GothamBold
-header.TextSize = 24
-header.TextXAlignment = Enum.TextXAlignment.Left
-header.Parent = root
+local function round(obj, radius)
+    make("UICorner", {CornerRadius=UDim.new(0, radius or 10)}, obj)
+end
+local function stroke(obj, color, thickness)
+    make("UIStroke", {Color=color or palette.line, Thickness=thickness or 1, Transparency=0.15}, obj)
+end
+local function refreshColors()
+    -- Recolor all UI elements carrying these attributes.
+    for _,obj in ipairs(gui:GetDescendants()) do
+        if obj:IsA("GuiObject") then
+            local role = obj:GetAttribute("SotkaRole")
+            if role == "bg" then obj.BackgroundColor3 = palette.bg
+            elseif role == "panel" then obj.BackgroundColor3 = palette.panel
+            elseif role == "card" then obj.BackgroundColor3 = palette.card
+            elseif role == "text" and obj:IsA("TextLabel") or role == "text" and obj:IsA("TextButton") then
+                obj.TextColor3 = palette.text
+            elseif role == "sub" and obj:IsA("TextLabel") then obj.TextColor3 = palette.sub end
+        end
+    end
+    for _,obj in ipairs(gui:GetDescendants()) do
+        if obj:IsA("UIStroke") then obj.Color = palette.line end
+    end
+end
 
-local close = Instance.new("TextButton")
-close.Size = UDim2.fromOffset(34, 30)
-close.Position = UDim2.new(1, -44, 0, 10)
-close.BackgroundColor3 = PANEL
-close.Text = "×"
-close.TextColor3 = TEXT
-close.TextSize = 22
-close.Font = Enum.Font.GothamBold
-close.Parent = root
-Instance.new("UICorner", close).CornerRadius = UDim.new(0, 8)
-close.Activated:Connect(function() root.Visible = false end)
+local root = make("Frame", {Name="Main", Size=UDim2.fromOffset(760, 500), Position=UDim2.new(0.5,-380,0.5,-250), BackgroundColor3=palette.bg, BorderSizePixel=0}, gui)
+root:SetAttribute("SotkaRole", "bg")
+round(root, 16); stroke(root, PURPLE, 2)
+make("UISizeConstraint", {MinSize=Vector2.new(320, 390), MaxSize=Vector2.new(900, 650)}, root)
 
-local body = Instance.new("Frame")
-body.Position = UDim2.fromOffset(14, 58)
-body.Size = UDim2.new(1, -28, 1, -72)
-body.BackgroundTransparency = 1
-body.Parent = root
+local top = make("Frame", {Size=UDim2.new(1,0,0,56), BackgroundColor3=palette.panel, BorderSizePixel=0}, root)
+top:SetAttribute("SotkaRole", "panel"); round(top, 14)
+local logo = make("TextLabel", {BackgroundTransparency=1, Position=UDim2.fromOffset(16,5), Size=UDim2.new(1,-140,0,46), Font=Enum.Font.GothamBold, Text="â™› SotkaHub", TextSize=25, TextXAlignment=Enum.TextXAlignment.Left, TextColor3=palette.text}, top)
+logo:SetAttribute("SotkaRole", "text")
+local close = make("TextButton", {Size=UDim2.fromOffset(38,38), Position=UDim2.new(1,-48,0,9), Text="Ã—", TextSize=28, Font=Enum.Font.GothamMedium, TextColor3=palette.text, BackgroundColor3=palette.card, BorderSizePixel=0}, top)
+close:SetAttribute("SotkaRole", "text"); round(close, 10); stroke(close)
+close.MouseButton1Click:Connect(function() gui.Enabled = false end)
 
-local language = "EN"
-local selectedDevice = "Phone"
-local currentPage = "Home"
-local demoUnlocked = false
-local labels = {
- EN = {key="Enter demo key", hint="Use DEMO-2026 (UI preview only)", activate="Activate", activated="Key activated!", device="Choose device", language="Choose language", next="Continue", home="Home", games="Games", settings="Settings", mm2="Murder Mystery 2", rivals="RIVALS", other="Other Games", safe="Safe Test Mode (UI demo)", note="Test-mode status is illustrative; configure trusted test access on your own server.", visual="Visual settings", neon="Neon theme", compact="Compact layout", perf="Performance tips", back="Back"},
- RU = {key="Введите демо-ключ", hint="Введите DEMO-2026 (только просмотр)", activate="Активировать", activated="Ключ активирован!", device="Выберите устройство", language="Выберите язык", next="Далее", home="Главная", games="Игры", settings="Настройки", mm2="Murder Mystery 2", rivals="RIVALS", other="Другие игры", safe="Безопасный тестовый режим (демо)", note="Статус показан для примера; доступ к тестам проверяйте на сервере своей игры.", visual="Настройки вида", neon="Неоновая тема", compact="Компактное меню", perf="Советы по производительности", back="Назад"}
-}
-local function t(k) return labels[language][k] or k end
+local side = make("Frame", {Position=UDim2.fromOffset(12,68), Size=UDim2.new(0,168,1,-80), BackgroundColor3=palette.panel, BorderSizePixel=0}, root)
+side:SetAttribute("SotkaRole", "panel"); round(side, 12)
+local content = make("Frame", {Position=UDim2.fromOffset(190,68), Size=UDim2.new(1,-202,1,-80), BackgroundColor3=palette.panel, BorderSizePixel=0}, root)
+content:SetAttribute("SotkaRole", "panel"); round(content, 12)
 
-local function clear()
- for _, child in ipairs(body:GetChildren()) do child:Destroy() end
+local gameList = {"ðŸšª  DOORS", "ðŸ”ª  Murder Mystery 2", "ðŸªµ  Lumber Tycoon 2", "â¤ï¸  Undertale", "ðŸ¾  Pet Simulator 99", "âš”ï¸  Rivals"}
+local selectedButton
+local statusLabel
+local function clearContent()
+    for _,c in ipairs(content:GetChildren()) do if not c:IsA("UICorner") and not c:IsA("UIStroke") then c:Destroy() end end
 end
-local function label(text, y, height, size)
- local l = Instance.new("TextLabel")
- l.Position = UDim2.fromOffset(4, y)
- l.Size = UDim2.new(1, -8, 0, height or 34)
- l.BackgroundTransparency = 1
- l.Text = text
- l.TextColor3 = TEXT
- l.Font = Enum.Font.GothamMedium
- l.TextSize = size or 15
- l.TextWrapped = true
- l.Parent = body
- return l
+local function addText(parent, text, size, pos, bounds, role)
+    local label = make("TextLabel", {BackgroundTransparency=1, Text=text, TextSize=size or 15, Font=Enum.Font.Gotham, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, Position=pos, Size=bounds, TextColor3=(role=="sub" and palette.sub or palette.text)}, parent)
+    label:SetAttribute("SotkaRole", role or "text")
+    return label
 end
-local function button(text, y, callback, color)
- local b = Instance.new("TextButton")
- b.Position = UDim2.fromOffset(4, y)
- b.Size = UDim2.new(1, -8, 0, 40)
- b.BackgroundColor3 = color or PANEL
- b.BorderSizePixel = 0
- b.Text = text
- b.TextColor3 = TEXT
- b.Font = Enum.Font.GothamMedium
- b.TextSize = 15
- b.Parent = body
- Instance.new("UICorner", b).CornerRadius = UDim.new(0, 9)
- b.Activated:Connect(callback)
- return b
+local function addButton(parent, text, pos, size, callback)
+    local b = make("TextButton", {Position=pos, Size=size, BackgroundColor3=palette.card, BorderSizePixel=0, Text=text, TextColor3=palette.text, TextSize=14, Font=Enum.Font.GothamMedium, TextWrapped=true, AutoButtonColor=true}, parent)
+    b:SetAttribute("SotkaRole", "card"); round(b, 9); stroke(b)
+    b.MouseButton1Click:Connect(callback)
+    return b
 end
-local function showKey()
- clear()
- label("♨  " .. t("key"), 4, 34, 18)
- local input = Instance.new("TextBox")
- input.Position = UDim2.fromOffset(4, 48)
- input.Size = UDim2.new(1, -8, 0, 42)
- input.BackgroundColor3 = PANEL
- input.BorderSizePixel = 0
- input.PlaceholderText = t("hint")
- input.Text = ""
- input.TextColor3 = TEXT
- input.PlaceholderColor3 = MUTED
- input.Font = Enum.Font.Gotham
- input.TextSize = 14
- input.ClearTextOnFocus = false
- input.Parent = body
- Instance.new("UICorner", input).CornerRadius = UDim.new(0, 9)
- local status = label("", 94, 34, 13)
- button(t("activate"), 138, function()
-  if input.Text == "DEMO-2026" then
-   demoUnlocked = true
-   status.Text = "✓  " .. t("activated")
-   status.TextColor3 = Color3.fromRGB(110, 255, 170)
-   task.wait(0.6)
-   showDevice()
-  else
-   status.Text = language == "RU" and "Неверный демо-ключ" or "Invalid demo key"
-   status.TextColor3 = Color3.fromRGB(255, 110, 140)
-  end
- end, PURPLE)
- label("UI demo only — not real authentication or anti-ban protection.", 194, 46, 12).TextColor3 = MUTED
+
+local function setHighlight(tag, enabled)
+    highlightsEnabled[tag] = enabled
+    for _,h in pairs(highlights[tag] or {}) do if h and h.Parent then h:Destroy() end end
+    highlights[tag] = {}
+    if not enabled then return end
+    for _,inst in ipairs(CollectionService:GetTagged(tag)) do
+        if inst:IsDescendantOf(workspace) then
+            local h = Instance.new("Highlight")
+            h.Name = "SotkaHubDemoHighlight"
+            h.Adornee = inst
+            h.FillColor = tag == "Door" and Color3.fromRGB(80, 180, 255) or Color3.fromRGB(255, 215, 70)
+            h.OutlineColor = h.FillColor
+            h.FillTransparency = 0.72
+            h.DepthMode = Enum.HighlightDepthMode.Occluded
+            h.Parent = inst
+            table.insert(highlights[tag], h)
+        end
+    end
 end
-function showDevice()
- clear()
- label(t("device"), 4, 34, 18)
- for i, name in ipairs({"Computer", "Tablet", "Phone"}) do
-  button(name, 48 + (i-1)*48, function() selectedDevice = name; showLanguage() end)
- end
+
+local function toggleRow(parent, labelText, tag, y)
+    addText(parent, labelText, 14, UDim2.fromOffset(16,y), UDim2.new(1,-105,0,34), "text")
+    local b
+    b = addButton(parent, highlightsEnabled[tag] and "ON âœ“" or "OFF â–¡", UDim2.new(1,-82,0,y+3), UDim2.fromOffset(64,28), function()
+        setHighlight(tag, not highlightsEnabled[tag])
+        b.Text = highlightsEnabled[tag] and "ON âœ“" or "OFF â–¡"
+    end)
 end
-function showLanguage()
- clear()
- label(t("language"), 4, 34, 18)
- button("English", 52, function() language = "EN"; showHome() end, PURPLE)
- button("Русский", 104, function() language = "RU"; showHome() end)
+
+local function showHome()
+    currentGame = "Choose a game"
+    clearContent()
+    addText(content, "Choose a game", 22, UDim2.fromOffset(18,10), UDim2.new(1,-36,0,38), "text")
+    addText(content, "Each game has its own controls. Demo features work in your own Roblox Studio experience.", 12, UDim2.fromOffset(18,48), UDim2.new(1,-36,0,42), "sub")
+    for i,name in ipairs(gameList) do
+        local col = (i-1)%2; local row = math.floor((i-1)/2)
+        addButton(content, name .. "   â€º", UDim2.fromOffset(18+col*255, 105+row*88), UDim2.fromOffset(238,70), function()
+            currentGame = name
+            showGame(name)
+        end)
+    end
 end
-function showPage(titleText, entries)
- clear()
- label(titleText, 2, 36, 18)
- for i, entry in ipairs(entries) do
-  local b = button("◈  " .. entry, 42 + (i-1)*48, function() end)
-  b.TextXAlignment = Enum.TextXAlignment.Left
-  b.Text = "   ◈  " .. entry
- end
- button("←  " .. t("back"), math.min(42 + #entries*48, 340), showHome, PURPLE)
+
+function showGame(name)
+    clearContent()
+    addButton(content, "â€¹ Back to games", UDim2.fromOffset(14,12), UDim2.fromOffset(125,30), showHome)
+    addText(content, name, 21, UDim2.fromOffset(150,8), UDim2.new(1,-165,0,38), "text")
+    if string.find(name, "DOORS", 1, true) then
+        addText(content, "Exploration helpers", 15, UDim2.fromOffset(18,54), UDim2.new(1,-36,0,28), "sub")
+        toggleRow(content, "Highlight tagged doors", "Door", 88)
+        toggleRow(content, "Highlight tagged items", "Item", 132)
+        addText(content, "Setup: in your own place, tag door models with 'Door' and collectible objects with 'Item' using CollectionService.", 12, UDim2.fromOffset(18,184), UDim2.new(1,-36,0,70), "sub")
+    elseif string.find(name, "Murder Mystery 2", 1, true) then
+        addText(content, "Own-game weapon skin demo", 15, UDim2.fromOffset(18,58), UDim2.new(1,-36,0,28), "sub")
+        addText(content, "Choose a visual preview. This prototype does not grant items in the original MM2.", 12, UDim2.fromOffset(18,84), UDim2.new(1,-36,0,42), "sub")
+        local skins = {"Classic", "Purple Neon", "Frost", "Golden"}
+        for i,skin in ipairs(skins) do
+            addButton(content, "ðŸ”ª  "..skin, UDim2.fromOffset(18+((i-1)%2)*220, 140+math.floor((i-1)/2)*55), UDim2.fromOffset(205,42), function()
+                if statusLabel then statusLabel:Destroy() end
+                statusLabel = addText(content, "Preview selected: "..skin.." (connect this to your own game's weapon system)", 13, UDim2.fromOffset(18,260), UDim2.new(1,-36,0,42), "text")
+            end)
+        end
+    elseif string.find(name, "Lumber Tycoon 2", 1, true) then
+        addText(content, "Woodworking guide", 15, UDim2.fromOffset(18,58), UDim2.new(1,-36,0,28), "sub")
+        for i,item in ipairs({"Select tree", "Select log", "Chop saw guide", "Sawmill guide", "Selling wood", "Build mode"}) do
+            local col=(i-1)%2; local row=math.floor((i-1)/2)
+            addButton(content, item, UDim2.fromOffset(18+col*220,100+row*54), UDim2.fromOffset(205,42), function()
+                if statusLabel then statusLabel:Destroy() end
+                statusLabel = addText(content, item..": add your own game's interaction here.", 13, UDim2.fromOffset(18,275), UDim2.new(1,-36,0,40), "text")
+            end)
+        end
+    elseif string.find(name, "Undertale", 1, true) then
+        for i,item in ipairs({"Battle", "Inventory", "Items", "Stats", "Settings"}) do
+            addButton(content, item, UDim2.fromOffset(18,58+(i-1)*48), UDim2.new(1,-36,0,38), function()
+                if statusLabel then statusLabel:Destroy() end
+                statusLabel = addText(content, item.." selected â€” connect this to your own game's systems.", 13, UDim2.fromOffset(18,320), UDim2.new(1,-36,0,40), "text")
+            end)
+        end
+    else
+        addText(content, "Game-specific controls", 15, UDim2.fromOffset(18,58), UDim2.new(1,-36,0,28), "sub")
+        addText(content, "This is a starter menu. Add features that match your own game's mechanics here.", 13, UDim2.fromOffset(18,92), UDim2.new(1,-36,0,60), "text")
+    end
 end
-function showHome()
- clear()
- label("Welcome to SotkaHub", 0, 34, 20)
- label(t("note"), 34, 54, 12).TextColor3 = MUTED
- button("⚔  " .. t("mm2"), 96, function()
-  showPage(t("mm2"), language == "RU" and {"Монеты (демо)", "Роли (справка)", "Выживание (справка)", "Визуальные настройки"} or {"Coins (demo)", "Roles (reference)", "Survival (reference)", "Visual settings"})
- end)
- button("🎯  " .. t("rivals"), 144, function()
-  showPage(t("rivals"), language == "RU" and {"Оружие (справка)", "Тренировка прицеливания", "Статистика боя", "Производительность"} or {"Weapons (reference)", "Aim training", "Combat stats", "Performance"})
- end)
- button("🎮  " .. t("other"), 192, function()
-  showPage(t("other"), language == "RU" and {"Другие игровые разделы", "Тестовые функции"} or {"Other game sections", "Test features"})
- end)
- button("⚙  " .. t("settings"), 240, function()
-  showPage(t("settings"), {t("visual"), t("neon"), t("compact"), t("perf"), t("safe")})
- end)
- label("Device: " .. selectedDevice .. "   •   " .. (language == "RU" and "Демо-режим" or "Demo mode"), 300, 30, 12).TextColor3 = MUTED
-end
-showKey()
+
+addText(side, "NAVIGATION", 11, UDim2.fromOffset(14,12), UDim2.new(1,-28,0,24), "sub")
+addButton(side, "âŒ‚   Home", UDim2.fromOffset(10,42), UDim2.new(1,-20,0,38), showHome)
+addButton(side, "ðŸŽ®  Games", UDim2.fromOffset(10,86), UDim2.new(1,-20,0,38), showHome)
+addText(side, "THEME", 11, UDim2.fromOffset(14,143), UDim2.new(1,-28,0,22), "sub")
+addButton(side, "â˜€  Light", UDim2.fromOffset(10,168), UDim2.new(0.5,-14,0,34), function() palette=LIGHT; refreshColors() end)
+addButton(side, "â˜¾  Dark", UDim2.new(0.5,4,0,168), UDim2.new(0.5,-14,0,34), function() palette=DARK; refreshColors() end)
+addText(side, "DEVICE", 11, UDim2.fromOffset(14,216), UDim2.new(1,-28,0,22), "sub")
+addButton(side, "ðŸ’»", UDim2.fromOffset(10,242), UDim2.fromOffset(42,38), function() selectedDevice="ðŸ’»"; root.Size=UDim2.fromOffset(760,500); root.Position=UDim2.new(0.5,-380,0.5,-250) end)
+addButton(side, "â–£", UDim2.fromOffset(58,242), UDim2.fromOffset(42,38), function() selectedDevice="â–£"; root.Size=UDim2.fromOffset(600,500); root.Position=UDim2.new(0.5,-300,0.5,-250) end)
+addButton(side, "â–¯", UDim2.fromOffset(106,242), UDim2.fromOffset(42,38), function() selectedDevice="â–¯"; root.Size=UDim2.fromOffset(360,540); root.Position=UDim2.new(0.5,-180,0.5,-270) end)
+addText(side, "Own-game UI prototype", 10, UDim2.fromOffset(12,side.AbsoluteSize.Y-34), UDim2.new(1,-24,0,24), "sub")
+
+-- Optional hide/show hotkey: RightShift
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed and input.KeyCode == Enum.KeyCode.RightShift then gui.Enabled = not gui.Enabled end
+end)
+
+showHome()
