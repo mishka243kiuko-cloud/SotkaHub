@@ -1,197 +1,137 @@
--- SotkaHub - safe Roblox Studio prototype
--- Put this LocalScript in StarterPlayer > StarterPlayerScripts in YOUR OWN Roblox experience.
--- This is a UI/demo for your own game, not an executor/third-party game exploit.
--- For DOORS-style highlighting, tag your own objects with CollectionService tags: "Door" and "Item".
+-- SotkaHub UI prototype for YOUR OWN Roblox Studio experience.
+-- Place this LocalScript in StarterPlayer > StarterPlayerScripts.
+-- Game-specific controls are demo UI; connect them to mechanics in your own game.
 
 local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+local old = playerGui:FindFirstChild("SotkaHub")
+if old then old:Destroy() end
 
-local PURPLE = Color3.fromRGB(153, 55, 255)
-local DARK = {bg=Color3.fromRGB(14, 10, 23), panel=Color3.fromRGB(24, 17, 38), card=Color3.fromRGB(32, 22, 49), text=Color3.fromRGB(248, 242, 255), sub=Color3.fromRGB(190, 169, 220), line=Color3.fromRGB(120, 45, 220)}
-local LIGHT = {bg=Color3.fromRGB(245, 239, 255), panel=Color3.fromRGB(255, 252, 255), card=Color3.fromRGB(235, 222, 255), text=Color3.fromRGB(54, 25, 91), sub=Color3.fromRGB(105, 72, 145), line=Color3.fromRGB(155, 91, 255)}
-local palette = DARK
-local currentGame = "Choose a game"
-local highlightsEnabled = {Door=false, Item=false}
-local highlights = {}
-local selectedDevice = "ðŸ’»"
+local purple = Color3.fromRGB(160, 75, 255)
+local dark = {bg=Color3.fromRGB(15,10,24), panel=Color3.fromRGB(27,18,42), card=Color3.fromRGB(39,26,58), text=Color3.fromRGB(250,245,255), sub=Color3.fromRGB(194,174,218)}
+local light = {bg=Color3.fromRGB(246,240,255), panel=Color3.fromRGB(255,252,255), card=Color3.fromRGB(231,218,250), text=Color3.fromRGB(55,25,86), sub=Color3.fromRGB(112,82,145)}
+local colors = dark
+local highlights = {Door=false, Item=false}
+local highlightObjects = {Door={}, Item={}}
+local currentPage = "Games"
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "SotkaHubPrototype"
+gui.Name = "SotkaHub"
 gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
+gui.IgnoreGuiInset = false
 gui.Parent = playerGui
 
-local function make(className, props, parent)
-    local obj = Instance.new(className)
-    for k,v in pairs(props or {}) do obj[k] = v end
-    obj.Parent = parent
-    return obj
+local function make(class, props, parent)
+    local o = Instance.new(class)
+    for k,v in pairs(props or {}) do o[k] = v end
+    o.Parent = parent
+    return o
 end
-
-local function round(obj, radius)
-    make("UICorner", {CornerRadius=UDim.new(0, radius or 10)}, obj)
+local function corner(o, radius) make("UICorner", {CornerRadius=UDim.new(0,radius or 10)}, o) end
+local function outline(o)
+    make("UIStroke", {Color=purple, Thickness=1.2, Transparency=0.15}, o)
 end
-local function stroke(obj, color, thickness)
-    make("UIStroke", {Color=color or palette.line, Thickness=thickness or 1, Transparency=0.15}, obj)
+local function label(parent, text, size, pos, dim, color)
+    return make("TextLabel", {BackgroundTransparency=1, Text=text, TextColor3=color or colors.text, Font=Enum.Font.Gotham, TextSize=size or 14, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, Position=pos, Size=dim}, parent)
 end
-local function refreshColors()
-    -- Recolor all UI elements carrying these attributes.
-    for _,obj in ipairs(gui:GetDescendants()) do
-        if obj:IsA("GuiObject") then
-            local role = obj:GetAttribute("SotkaRole")
-            if role == "bg" then obj.BackgroundColor3 = palette.bg
-            elseif role == "panel" then obj.BackgroundColor3 = palette.panel
-            elseif role == "card" then obj.BackgroundColor3 = palette.card
-            elseif role == "text" and obj:IsA("TextLabel") or role == "text" and obj:IsA("TextButton") then
-                obj.TextColor3 = palette.text
-            elseif role == "sub" and obj:IsA("TextLabel") then obj.TextColor3 = palette.sub end
-        end
-    end
-    for _,obj in ipairs(gui:GetDescendants()) do
-        if obj:IsA("UIStroke") then obj.Color = palette.line end
-    end
-end
-
-local root = make("Frame", {Name="Main", Size=UDim2.fromOffset(760, 500), Position=UDim2.new(0.5,-380,0.5,-250), BackgroundColor3=palette.bg, BorderSizePixel=0}, gui)
-root:SetAttribute("SotkaRole", "bg")
-round(root, 16); stroke(root, PURPLE, 2)
-make("UISizeConstraint", {MinSize=Vector2.new(320, 390), MaxSize=Vector2.new(900, 650)}, root)
-
-local top = make("Frame", {Size=UDim2.new(1,0,0,56), BackgroundColor3=palette.panel, BorderSizePixel=0}, root)
-top:SetAttribute("SotkaRole", "panel"); round(top, 14)
-local logo = make("TextLabel", {BackgroundTransparency=1, Position=UDim2.fromOffset(16,5), Size=UDim2.new(1,-140,0,46), Font=Enum.Font.GothamBold, Text="â™› SotkaHub", TextSize=25, TextXAlignment=Enum.TextXAlignment.Left, TextColor3=palette.text}, top)
-logo:SetAttribute("SotkaRole", "text")
-local close = make("TextButton", {Size=UDim2.fromOffset(38,38), Position=UDim2.new(1,-48,0,9), Text="Ã—", TextSize=28, Font=Enum.Font.GothamMedium, TextColor3=palette.text, BackgroundColor3=palette.card, BorderSizePixel=0}, top)
-close:SetAttribute("SotkaRole", "text"); round(close, 10); stroke(close)
-close.MouseButton1Click:Connect(function() gui.Enabled = false end)
-
-local side = make("Frame", {Position=UDim2.fromOffset(12,68), Size=UDim2.new(0,168,1,-80), BackgroundColor3=palette.panel, BorderSizePixel=0}, root)
-side:SetAttribute("SotkaRole", "panel"); round(side, 12)
-local content = make("Frame", {Position=UDim2.fromOffset(190,68), Size=UDim2.new(1,-202,1,-80), BackgroundColor3=palette.panel, BorderSizePixel=0}, root)
-content:SetAttribute("SotkaRole", "panel"); round(content, 12)
-
-local gameList = {"ðŸšª  DOORS", "ðŸ”ª  Murder Mystery 2", "ðŸªµ  Lumber Tycoon 2", "â¤ï¸  Undertale", "ðŸ¾  Pet Simulator 99", "âš”ï¸  Rivals"}
-local selectedButton
-local statusLabel
-local function clearContent()
-    for _,c in ipairs(content:GetChildren()) do if not c:IsA("UICorner") and not c:IsA("UIStroke") then c:Destroy() end end
-end
-local function addText(parent, text, size, pos, bounds, role)
-    local label = make("TextLabel", {BackgroundTransparency=1, Text=text, TextSize=size or 15, Font=Enum.Font.Gotham, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, Position=pos, Size=bounds, TextColor3=(role=="sub" and palette.sub or palette.text)}, parent)
-    label:SetAttribute("SotkaRole", role or "text")
-    return label
-end
-local function addButton(parent, text, pos, size, callback)
-    local b = make("TextButton", {Position=pos, Size=size, BackgroundColor3=palette.card, BorderSizePixel=0, Text=text, TextColor3=palette.text, TextSize=14, Font=Enum.Font.GothamMedium, TextWrapped=true, AutoButtonColor=true}, parent)
-    b:SetAttribute("SotkaRole", "card"); round(b, 9); stroke(b)
-    b.MouseButton1Click:Connect(callback)
+local function button(parent, text, pos, dim, callback)
+    local b=make("TextButton", {Text=text, TextColor3=colors.text, Font=Enum.Font.GothamMedium, TextSize=14, TextWrapped=true, BackgroundColor3=colors.card, BorderSizePixel=0, Position=pos, Size=dim, AutoButtonColor=true}, parent)
+    corner(b,9); outline(b); b.MouseButton1Click:Connect(callback)
     return b
 end
 
-local function setHighlight(tag, enabled)
-    highlightsEnabled[tag] = enabled
-    for _,h in pairs(highlights[tag] or {}) do if h and h.Parent then h:Destroy() end end
-    highlights[tag] = {}
-    if not enabled then return end
-    for _,inst in ipairs(CollectionService:GetTagged(tag)) do
-        if inst:IsDescendantOf(workspace) then
-            local h = Instance.new("Highlight")
-            h.Name = "SotkaHubDemoHighlight"
-            h.Adornee = inst
-            h.FillColor = tag == "Door" and Color3.fromRGB(80, 180, 255) or Color3.fromRGB(255, 215, 70)
-            h.OutlineColor = h.FillColor
-            h.FillTransparency = 0.72
-            h.DepthMode = Enum.HighlightDepthMode.Occluded
-            h.Parent = inst
-            table.insert(highlights[tag], h)
+local root=make("Frame", {Name="Window", AnchorPoint=Vector2.new(.5,.5), Position=UDim2.fromScale(.5,.5), Size=UDim2.fromScale(.94,.84), BackgroundColor3=colors.bg, BorderSizePixel=0}, gui)
+root.ClipsDescendants=true; corner(root,14); outline(root)
+make("UISizeConstraint", {MinSize=Vector2.new(300,300), MaxSize=Vector2.new(1000,700)}, root)
+local scale=make("UIScale", {Scale=1}, root)
+local function resize()
+    local cam=workspace.CurrentCamera
+    if not cam then return end
+    local v=cam.ViewportSize
+    if v.X < 600 then scale.Scale=.82 else scale.Scale=1 end
+end
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize) end
+resize()
+
+local header=make("Frame", {Size=UDim2.new(1,0,0,48), BackgroundColor3=colors.panel, BorderSizePixel=0}, root)
+corner(header,12)
+label(header,"♛  SotkaHub",20,UDim2.fromOffset(14,0),UDim2.new(1,-110,1,0),colors.text).Font=Enum.Font.GothamBold
+local close=button(header,"×",UDim2.new(1,-42,0,6),UDim2.fromOffset(34,34),function() gui.Enabled=false end)
+close.TextSize=25
+local hide=button(header,"—",UDim2.new(1,-82,0,6),UDim2.fromOffset(34,34),function() root.Visible=false end)
+hide.TextSize=20
+
+local sidebar=make("Frame", {Position=UDim2.fromOffset(8,56), Size=UDim2.new(0,140,1,-64), BackgroundColor3=colors.panel, BorderSizePixel=0}, root)
+corner(sidebar,10)
+local content=make("ScrollingFrame", {Name="Page", Position=UDim2.fromOffset(156,56), Size=UDim2.new(1,-164,1,-64), BackgroundColor3=colors.panel, BorderSizePixel=0, ScrollBarThickness=4, ScrollBarImageColor3=purple, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y}, root)
+corner(content,10)
+local layout=make("UIListLayout", {Padding=UDim.new(0,8), SortOrder=Enum.SortOrder.LayoutOrder}, content)
+make("UIPadding", {PaddingTop=UDim.new(0,12), PaddingBottom=UDim.new(0,12), PaddingLeft=UDim.new(0,12), PaddingRight=UDim.new(0,12)}, content)
+
+local function refreshTheme()
+    root.BackgroundColor3=colors.bg; header.BackgroundColor3=colors.panel; sidebar.BackgroundColor3=colors.panel; content.BackgroundColor3=colors.panel
+    for _,o in ipairs(gui:GetDescendants()) do
+        if o:IsA("TextLabel") or o:IsA("TextButton") then
+            o.TextColor3=colors.text
+            if o:IsA("TextButton") then o.BackgroundColor3=colors.card end
+        elseif o:IsA("Frame") and o~=root and o~=header and o~=sidebar and o~=content then
+            -- keep the visual grouping consistent with the selected theme
         end
     end
 end
-
-local function toggleRow(parent, labelText, tag, y)
-    addText(parent, labelText, 14, UDim2.fromOffset(16,y), UDim2.new(1,-105,0,34), "text")
-    local b
-    b = addButton(parent, highlightsEnabled[tag] and "ON âœ“" or "OFF â–¡", UDim2.new(1,-82,0,y+3), UDim2.fromOffset(64,28), function()
-        setHighlight(tag, not highlightsEnabled[tag])
-        b.Text = highlightsEnabled[tag] and "ON âœ“" or "OFF â–¡"
-    end)
+local function clearPage()
+    for _,c in ipairs(content:GetChildren()) do if not c:IsA("UIListLayout") and not c:IsA("UIPadding") and not c:IsA("UICorner") then c:Destroy() end end
 end
-
-local function showHome()
-    currentGame = "Choose a game"
-    clearContent()
-    addText(content, "Choose a game", 22, UDim2.fromOffset(18,10), UDim2.new(1,-36,0,38), "text")
-    addText(content, "Each game has its own controls. Demo features work in your own Roblox Studio experience.", 12, UDim2.fromOffset(18,48), UDim2.new(1,-36,0,42), "sub")
-    for i,name in ipairs(gameList) do
-        local col = (i-1)%2; local row = math.floor((i-1)/2)
-        addButton(content, name .. "   â€º", UDim2.fromOffset(18+col*255, 105+row*88), UDim2.fromOffset(238,70), function()
-            currentGame = name
-            showGame(name)
-        end)
-    end
+local function addPageTitle(t, sub)
+    local title=label(content,t,21,UDim2.new(),UDim2.new(1,0,0,34)); title.LayoutOrder=1; title.Font=Enum.Font.GothamBold
+    if sub then local s=label(content,sub,12,UDim2.new(),UDim2.new(1,0,0,38),colors.sub); s.LayoutOrder=2 end
 end
-
-function showGame(name)
-    clearContent()
-    addButton(content, "â€¹ Back to games", UDim2.fromOffset(14,12), UDim2.fromOffset(125,30), showHome)
-    addText(content, name, 21, UDim2.fromOffset(150,8), UDim2.new(1,-165,0,38), "text")
-    if string.find(name, "DOORS", 1, true) then
-        addText(content, "Exploration helpers", 15, UDim2.fromOffset(18,54), UDim2.new(1,-36,0,28), "sub")
-        toggleRow(content, "Highlight tagged doors", "Door", 88)
-        toggleRow(content, "Highlight tagged items", "Item", 132)
-        addText(content, "Setup: in your own place, tag door models with 'Door' and collectible objects with 'Item' using CollectionService.", 12, UDim2.fromOffset(18,184), UDim2.new(1,-36,0,70), "sub")
-    elseif string.find(name, "Murder Mystery 2", 1, true) then
-        addText(content, "Own-game weapon skin demo", 15, UDim2.fromOffset(18,58), UDim2.new(1,-36,0,28), "sub")
-        addText(content, "Choose a visual preview. This prototype does not grant items in the original MM2.", 12, UDim2.fromOffset(18,84), UDim2.new(1,-36,0,42), "sub")
-        local skins = {"Classic", "Purple Neon", "Frost", "Golden"}
-        for i,skin in ipairs(skins) do
-            addButton(content, "ðŸ”ª  "..skin, UDim2.fromOffset(18+((i-1)%2)*220, 140+math.floor((i-1)/2)*55), UDim2.fromOffset(205,42), function()
-                if statusLabel then statusLabel:Destroy() end
-                statusLabel = addText(content, "Preview selected: "..skin.." (connect this to your own game's weapon system)", 13, UDim2.fromOffset(18,260), UDim2.new(1,-36,0,42), "text")
-            end)
-        end
-    elseif string.find(name, "Lumber Tycoon 2", 1, true) then
-        addText(content, "Woodworking guide", 15, UDim2.fromOffset(18,58), UDim2.new(1,-36,0,28), "sub")
-        for i,item in ipairs({"Select tree", "Select log", "Chop saw guide", "Sawmill guide", "Selling wood", "Build mode"}) do
-            local col=(i-1)%2; local row=math.floor((i-1)/2)
-            addButton(content, item, UDim2.fromOffset(18+col*220,100+row*54), UDim2.fromOffset(205,42), function()
-                if statusLabel then statusLabel:Destroy() end
-                statusLabel = addText(content, item..": add your own game's interaction here.", 13, UDim2.fromOffset(18,275), UDim2.new(1,-36,0,40), "text")
-            end)
-        end
-    elseif string.find(name, "Undertale", 1, true) then
-        for i,item in ipairs({"Battle", "Inventory", "Items", "Stats", "Settings"}) do
-            addButton(content, item, UDim2.fromOffset(18,58+(i-1)*48), UDim2.new(1,-36,0,38), function()
-                if statusLabel then statusLabel:Destroy() end
-                statusLabel = addText(content, item.." selected â€” connect this to your own game's systems.", 13, UDim2.fromOffset(18,320), UDim2.new(1,-36,0,40), "text")
-            end)
-        end
+local function pageButton(t, cb)
+    local b=button(content,t,UDim2.new(),UDim2.new(1,0,0,42),cb); b.LayoutOrder=#content:GetChildren()+1; return b
+end
+local games={"🚪  DOORS","🔪  Murder Mystery 2","🪵  Lumber Tycoon 2","❤️  Undertale","🐾  Pet Simulator 99","⚔️  Rivals"}
+local function openGame(name)
+    currentPage=name; clearPage(); addPageTitle(name,"Only this game's menu is open. Back returns to game selection.")
+    pageButton("‹  Back to games",function() currentPage="Games"; clearPage(); addPageTitle("Choose a game","Select a game to open its own menu."); for _,g in ipairs(games) do pageButton(g,function() openGame(g) end) end end)
+    if name:find("DOORS",1,true) then
+        pageButton("Highlight doors: OFF □",function() highlights.Door=not highlights.Door; for _,h in ipairs(highlightObjects.Door) do if h.Parent then h:Destroy() end end; table.clear(highlightObjects.Door); if highlights.Door then for _,obj in ipairs(CollectionService:GetTagged("Door")) do if obj:IsDescendantOf(workspace) then local h=Instance.new("Highlight"); h.Adornee=obj; h.DepthMode=Enum.HighlightDepthMode.Occluded; h.FillColor=Color3.fromRGB(95,170,255); h.OutlineColor=h.FillColor; h.Parent=obj; table.insert(highlightObjects.Door,h) end end end; end)
+        pageButton("Highlight items: OFF □",function() highlights.Item=not highlights.Item; for _,h in ipairs(highlightObjects.Item) do if h.Parent then h:Destroy() end end; table.clear(highlightObjects.Item); if highlights.Item then for _,obj in ipairs(CollectionService:GetTagged("Item")) do if obj:IsDescendantOf(workspace) then local h=Instance.new("Highlight"); h.Adornee=obj; h.DepthMode=Enum.HighlightDepthMode.Occluded; h.FillColor=Color3.fromRGB(255,210,75); h.OutlineColor=h.FillColor; h.Parent=obj; table.insert(highlightObjects.Item,h) end end end end)
+        local note=label(content,"For your own place: tag your door models 'Door' and item models 'Item' with CollectionService.",12,UDim2.new(),UDim2.new(1,0,0,54),colors.sub); note.LayoutOrder=20
+    elseif name:find("Murder Mystery 2",1,true) then
+        label(content,"Own-game weapon skin preview",13,UDim2.new(),UDim2.new(1,0,0,32),colors.sub).LayoutOrder=3
+        for _,skin in ipairs({"Classic","Purple Neon","Frost","Golden"}) do pageButton("🔪  "..skin,function() pageButton("Selected preview: "..skin.." (demo)",function() end) end) end
+    elseif name:find("Lumber Tycoon 2",1,true) then
+        for _,action in ipairs({"Select tree","Select log","Chop saw guide","Sawmill guide","Sell wood guide","Build mode guide"}) do pageButton(action,function() pageButton(action..": connect this to your own game's mechanics.",function() end) end) end
+    elseif name:find("Undertale",1,true) then
+        for _,action in ipairs({"Battle","Inventory","Items","Stats","Settings"}) do pageButton(action,function() pageButton(action.." selected (demo)",function() end) end) end
     else
-        addText(content, "Game-specific controls", 15, UDim2.fromOffset(18,58), UDim2.new(1,-36,0,28), "sub")
-        addText(content, "This is a starter menu. Add features that match your own game's mechanics here.", 13, UDim2.fromOffset(18,92), UDim2.new(1,-36,0,60), "text")
+        pageButton("Collect / interact guide",function() pageButton("Demo control selected",function() end) end)
+        pageButton("Settings",function() pageButton("Demo settings selected",function() end) end)
     end
 end
 
-addText(side, "NAVIGATION", 11, UDim2.fromOffset(14,12), UDim2.new(1,-28,0,24), "sub")
-addButton(side, "âŒ‚   Home", UDim2.fromOffset(10,42), UDim2.new(1,-20,0,38), showHome)
-addButton(side, "ðŸŽ®  Games", UDim2.fromOffset(10,86), UDim2.new(1,-20,0,38), showHome)
-addText(side, "THEME", 11, UDim2.fromOffset(14,143), UDim2.new(1,-28,0,22), "sub")
-addButton(side, "â˜€  Light", UDim2.fromOffset(10,168), UDim2.new(0.5,-14,0,34), function() palette=LIGHT; refreshColors() end)
-addButton(side, "â˜¾  Dark", UDim2.new(0.5,4,0,168), UDim2.new(0.5,-14,0,34), function() palette=DARK; refreshColors() end)
-addText(side, "DEVICE", 11, UDim2.fromOffset(14,216), UDim2.new(1,-28,0,22), "sub")
-addButton(side, "ðŸ’»", UDim2.fromOffset(10,242), UDim2.fromOffset(42,38), function() selectedDevice="ðŸ’»"; root.Size=UDim2.fromOffset(760,500); root.Position=UDim2.new(0.5,-380,0.5,-250) end)
-addButton(side, "â–£", UDim2.fromOffset(58,242), UDim2.fromOffset(42,38), function() selectedDevice="â–£"; root.Size=UDim2.fromOffset(600,500); root.Position=UDim2.new(0.5,-300,0.5,-250) end)
-addButton(side, "â–¯", UDim2.fromOffset(106,242), UDim2.fromOffset(42,38), function() selectedDevice="â–¯"; root.Size=UDim2.fromOffset(360,540); root.Position=UDim2.new(0.5,-180,0.5,-270) end)
-addText(side, "Own-game UI prototype", 10, UDim2.fromOffset(12,side.AbsoluteSize.Y-34), UDim2.new(1,-24,0,24), "sub")
+label(sidebar,"MENU",11,UDim2.fromOffset(12,8),UDim2.new(1,-24,0,24),colors.sub)
+local navHome=button(sidebar,"⌂  Home",UDim2.fromOffset(8,36),UDim2.new(1,-16,0,36),function() currentPage="Home"; clearPage(); addPageTitle("Home","Welcome to SotkaHub."); pageButton("Choose a game",function() currentPage="Games"; clearPage(); addPageTitle("Choose a game","Select a game to open its own menu."); for _,g in ipairs(games) do pageButton(g,function() openGame(g) end) end end) end)
+local navGames=button(sidebar,"🎮  Games",UDim2.fromOffset(8,78),UDim2.new(1,-16,0,36),function() currentPage="Games"; clearPage(); addPageTitle("Choose a game","Select a game to open its own menu."); for _,g in ipairs(games) do pageButton(g,function() openGame(g) end) end end)
+label(sidebar,"THEME",11,UDim2.fromOffset(12,130),UDim2.new(1,-24,0,20),colors.sub)
+button(sidebar,"☀",UDim2.fromOffset(8,154),UDim2.new(.5,-12,0,34),function() colors=light; refreshTheme() end)
+button(sidebar,"☾",UDim2.new(.5,4,0,154),UDim2.new(.5,-12,0,34),function() colors=dark; refreshTheme() end)
+label(sidebar,"DEVICE",11,UDim2.fromOffset(12,204),UDim2.new(1,-24,0,20),colors.sub)
+button(sidebar,"💻",UDim2.fromOffset(8,228),UDim2.fromOffset(36,34),function() root.Size=UDim2.fromScale(.94,.84); resize() end)
+button(sidebar,"▣",UDim2.fromOffset(49,228),UDim2.fromOffset(36,34),function() root.Size=UDim2.fromScale(.82,.86); resize() end)
+button(sidebar,"▯",UDim2.fromOffset(90,228),UDim2.fromOffset(36,34),function() root.Size=UDim2.fromScale(.7,.88); resize() end)
 
--- Optional hide/show hotkey: RightShift
+currentPage="Games"; addPageTitle("Choose a game","Select a game to open its own menu.")
+for _,g in ipairs(games) do pageButton(g,function() openGame(g) end) end
 UserInputService.InputBegan:Connect(function(input, processed)
-    if not processed and input.KeyCode == Enum.KeyCode.RightShift then gui.Enabled = not gui.Enabled end
+    if not processed and input.KeyCode==Enum.KeyCode.RightShift then
+        if root.Visible then root.Visible=false else gui.Enabled=true; root.Visible=true end
+    end
 end)
-
-showHome()
+-- Re-open button when the window is collapsed with the minus button.
+local reopen=make("TextButton",{Name="ReopenSotkaHub",Text="S",TextColor3=Color3.new(1,1,1),TextSize=18,Font=Enum.Font.GothamBold,BackgroundColor3=purple,Size=UDim2.fromOffset(42,42),Position=UDim2.new(0,12,0.5,-21),Visible=false},gui)
+corner(reopen,12); reopen.MouseButton1Click:Connect(function() root.Visible=true; reopen.Visible=false end)
+hide.MouseButton1Click:Connect(function() root.Visible=false; reopen.Visible=true end)
